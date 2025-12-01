@@ -9,13 +9,10 @@ from sparql_ply.util import serialize, deserialize, traverse, expand_syntax_form
 import networkx as nx
 from networkx import has_path
 import re
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 import itertools
 import random 
 import math
 import pandas as pd
-from upsetplot import UpSet, from_contents
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import csv
@@ -362,12 +359,12 @@ def analysis_structural_complexity(data_item, extracted_features):
             path = nx.shortest_path(G_sparql_fact_only, source=var, target=url)
             edges = [G_sparql_fact_only[path[i]][path[i+1]] for i in range(0, len(path)-1)]
             if len(edges) >= 3:
-                structural_complexity.append('multi_hop')
+                structural_complexity.append('multi_hop_reasoning')
                 break
             elif len(edges) == 2:
                 wdt_num = len([edge for edge in edges if 'wdt:' in edge['property']])
                 if wdt_num > 0:
-                    structural_complexity.append('multi_hop')
+                    structural_complexity.append('multi_hop_reasoning')
                     break
     #Temporal fact fusion
     nodes_to_vars = {}
@@ -377,7 +374,8 @@ def analysis_structural_complexity(data_item, extracted_features):
     # for idx, filter_or_bind in enumerate(extracted_features['filters'] + extracted_features['binds']):
     #     temporal_external_variables = list(set(re.findall("\?\w+", filter_or_bind)))
     #     nodes_to_vars[f"filter_or_bind_{idx}"] = temporal_external_variables
-    if len(nodes_to_vars) >= 2:
+    nodes_to_temp_var_noempty = {k:v for k,v in nodes_to_vars.items() if len(v) > 0}
+    if len(nodes_to_temp_var_noempty) >= 2:
         structural_complexity.append("temporal_fact_fusion")
     # G = nx.Graph()
     # for node in nodes_to_vars:
@@ -416,7 +414,7 @@ def collect_var(extracted_features):
 def analysis_temporal_taxonomy(dataset):
     if dataset == "RC-TKGQA":
         extraction_results = []
-        dataset_dir = "dataset/RC-TKGQA_final"
+        dataset_dir = "dataset"
         result_dir = "analysis_results/RC-TKGQA"
         if not os.path.isdir(result_dir):
             os.makedirs(result_dir)
@@ -446,7 +444,7 @@ def analysis_temporal_taxonomy(dataset):
             extraction_result['analysis'] = analysis_filter_bind(extraction_result['vars'], extraction_result['filter'], extraction_result['bind'])
             structural_complexity, G_sparql = analysis_structural_complexity(item, extracted_features)
             extraction_result['sparql_skeleton_graph'] = nx.node_link_data(G_sparql)
-            for complexity in ['temporal_composition', 'multi_hop']:
+            for complexity in ['temporal_fact_fusion', 'multi_hop_reasoning']:
                 if complexity in structural_complexity:
                     extraction_result['analysis'][complexity] = [True]
                 else:
@@ -457,8 +455,8 @@ def analysis_temporal_taxonomy(dataset):
             extraction_results.append(extraction_result)
         json.dump(extraction_results, open(f'{result_dir}/complexity_taxonomy.json', 'w'), indent=4)
     elif dataset == "TempQA-WD":
-        dataset_dir = "dataset/tempqa-wd/data"
-        result_dir = "analysis_results/TempQA_WD"
+        dataset_dir = "tempqa_wd"
+        result_dir = "analysis_results/TempQA-WD"
         if not os.path.isdir(result_dir):
             os.makedirs(result_dir)
         extraction_results = []
@@ -484,7 +482,7 @@ def analysis_temporal_taxonomy(dataset):
             extraction_result['analysis'] = analysis_filter_bind(extraction_result['vars'], extraction_result['filter'], extraction_result['bind'])
             structural_complexity, G_sparql = analysis_structural_complexity(item, extracted_features)
             extraction_result['sparql_skeleton_graph'] = nx.node_link_data(G_sparql)
-            for complexity in ['temporal_composition', 'multi_hop']:
+            for complexity in ['temporal_fact_fusion', 'multi_hop_reasoning']:
                 if complexity in structural_complexity:
                     extraction_result['analysis'][complexity] = [True]
                 else:
@@ -585,8 +583,8 @@ def analysis_aggregation(analysis_result: dict, sparql, vars):
             if '*' in select or '/' in select:
                 # must be a duration
                 analysis_result['duration_ordinal'].add(select)
-                if '365' not in select and select not in analysis_result['duration_arithmetic']:
-                    analysis_result['duration_arithmetic'].append(select)
+                if '365' not in select and select not in analysis_result['duration_calculation']:
+                    analysis_result['duration_calculation'].append(select)
             has_time_point_var = False
             has_duration_var = False
             for var in vars['time_point']:
@@ -604,14 +602,14 @@ def analysis_aggregation(analysis_result: dict, sparql, vars):
                         analysis_result['timepoint_shift'].append(select)
                 elif has_duration_var:
                     analysis_result['duration_ordinal'].add(select)
-                    if select not in analysis_result['duration_arithmetic']:
-                        analysis_result['duration_arithmetic'].append(select)
+                    if select not in analysis_result['duration_calculation']:
+                        analysis_result['duration_calculation'].append(select)
             if '-' in select:
                 analysis_result['duration_ordinal'].add(select)
                 if has_time_point_var and select not in analysis_result['duration_derivation']:
                     analysis_result['duration_derivation'].append(select)
-                if has_duration_var and select not in analysis_result['duration_arithmetic']:
-                    analysis_result['duration_arithmetic'].append(select)
+                if has_duration_var and select not in analysis_result['duration_calculation']:
+                    analysis_result['duration_calculation'].append(select)
             if '+' not in select and '-' not in select and '*' not in select and '/' not in select:
                 if has_time_point_var:
                     analysis_result['timepoint_ordinal'].add(select)
@@ -623,8 +621,8 @@ def analysis_aggregation(analysis_result: dict, sparql, vars):
         if '*' in order_by or '/' in order_by:
             # must be a duration
             analysis_result['duration_ordinal'].add(order_by)
-            if '365' not in order_by and order_by not in analysis_result['duration_arithmetic']:
-                analysis_result['duration_arithmetic'].append(order_by)
+            if '365' not in order_by and order_by not in analysis_result['duration_calculation']:
+                analysis_result['duration_calculation'].append(order_by)
         for var in vars['time_point']:
             if f'{var} ' in order_by or f'{var})' in order_by or order_by.endswith(var):
                 has_time_point_var = True
@@ -640,14 +638,14 @@ def analysis_aggregation(analysis_result: dict, sparql, vars):
                     analysis_result['timepoint_shift'].append(order_by)
             elif has_duration_var:
                 analysis_result['duration_ordinal'].add(order_by)
-                if order_by not in analysis_result['duration_arithmetic']:
-                    analysis_result['duration_arithmetic'].append(order_by)
+                if order_by not in analysis_result['duration_calculation']:
+                    analysis_result['duration_calculation'].append(order_by)
         if '-' in order_by:
             analysis_result['duration_ordinal'].add(order_by)
             if has_time_point_var and order_by not in analysis_result['duration_derivation']:
                 analysis_result['duration_derivation'].append(order_by)
-            if has_duration_var and order_by not in analysis_result['duration_arithmetic']:
-                analysis_result['duration_arithmetic'].append(order_by)
+            if has_duration_var and order_by not in analysis_result['duration_calculation']:
+                analysis_result['duration_calculation'].append(order_by)
         if '+' not in order_by and '-' not in order_by and '*' not in order_by and '/' not in order_by:
             if has_time_point_var:
                 analysis_result['timepoint_ordinal'].add(order_by)
@@ -664,9 +662,9 @@ def analysis_filter_bind(vars, filters, binds):
     analysis_result = {
         'timepoint_comparision': set(),
         'duration_comparison': set(),
-        'duration_arithmetic': set(),
+        'duration_calculation': set(),
         'timepoint_shift': set(),
-        'interval_calculation': set(),
+        'duration_derivation': set(),
         'granularity_conversion': set(),
         'frequency': set()
     }
@@ -687,22 +685,22 @@ def analysis_filter_bind(vars, filters, binds):
                                 analysis_result['granularity_conversion'].add(bind)
                             elif oper == '-':
                                 if is_time_point:
-                                    analysis_result['interval_calculation'].add(bind)
+                                    analysis_result['duration_derivation'].add(bind)
                                     is_time_point = False
                                 else:
-                                    analysis_result['duration_arithmetic'].add(bind)
+                                    analysis_result['duration_calculation'].add(bind)
                             elif oper == '+':
                                 if is_time_point:
                                     analysis_result['timepoint_shift'].add(bind)
                                 else:
-                                    analysis_result['duration_arithmetic'].add(bind)
+                                    analysis_result['duration_calculation'].add(bind)
                             elif oper in ['*', '/']:
                                 if '1' in binds[bind][content]['children'] or '365' in binds[bind][content]['children']:
                                     continue
                                 if oper == '/':
                                     analysis_result['frequency'].add(bind)
                                 else:
-                                    analysis_result['duration_arithmetic'].add(bind)
+                                    analysis_result['duration_calculation'].add(bind)
             if not is_time_point:
                 vars['derived_duration'].append(new_var)
         for filter in filters.keys():
@@ -717,22 +715,22 @@ def analysis_filter_bind(vars, filters, binds):
                                 analysis_result['granularity_conversion'].add(filter)
                             elif oper == '-':
                                 if is_time_point:
-                                    analysis_result['interval_calculation'].add(filter)
+                                    analysis_result['duration_derivation'].add(filter)
                                     is_time_point = False
                                 else:
-                                    analysis_result['duration_arithmetic'].add(filter)
+                                    analysis_result['duration_calculation'].add(filter)
                             elif oper == '+':
                                 if is_time_point:
                                     analysis_result['timepoint_shift'].add(filter)
                                 else:
-                                    analysis_result['duration_arithmetic'].add(filter)
+                                    analysis_result['duration_calculation'].add(filter)
                             elif oper in ['*', '/']:
                                 if '1' in filters[filter][content]['children'] or '365' in filters[filter][content]['children']:
                                     continue
                                 if oper == '/':
                                     analysis_result['frequency'].add(filter)
                                 else:
-                                    analysis_result['duration_arithmetic'].add(filter)
+                                    analysis_result['duration_calculation'].add(filter)
                             elif oper in ['<', '>', '=', '<=', '>=']:
                                 if is_time_point:
                                     analysis_result['timepoint_comparision'].add(filter)
@@ -751,16 +749,16 @@ def analysis_filter_bind(vars, filters, binds):
                         if 'operator' in binds[bind][content].keys():
                             oper = binds[bind][content]['operator']
                             if oper == '-':
-                                analysis_result['duration_arithmetic'].add(bind)
+                                analysis_result['duration_calculation'].add(bind)
                             elif oper == '+':
-                                analysis_result['duration_arithmetic'].add(bind)
+                                analysis_result['duration_calculation'].add(bind)
                             elif oper in ['*', '/']:
                                 if '1' in binds[bind][content]['children'] or '365' in binds[bind][content]['children']:
                                     continue
                                 if oper == '/':
                                     analysis_result['frequency'].add(bind)
                                 else:
-                                    analysis_result['duration_arithmetic'].add(bind)
+                                    analysis_result['duration_calculation'].add(bind)
                 new_vars.append(new_var)
     vars['derived_duration'].extend(new_vars)
     for var in vars['derived_duration'] + vars['duration']:
@@ -772,16 +770,16 @@ def analysis_filter_bind(vars, filters, binds):
                         if 'operator' in filters[filter][content].keys():
                             oper = filters[filter][content]['operator']
                             if oper == '-':
-                                analysis_result['duration_arithmetic'].add(filter)
+                                analysis_result['duration_calculation'].add(filter)
                             elif oper == '+':
-                                analysis_result['duration_arithmetic'].add(filter)
+                                analysis_result['duration_calculation'].add(filter)
                             elif oper in ['*', '/']:
                                 if '1' in filters[filter][content]['children'] or '365' in filters[filter][content]['children']:
                                     continue
                                 if oper == '/':
                                     analysis_result['frequency'].add(filter)
                                 else:
-                                    analysis_result['duration_arithmetic'].add(filter)
+                                    analysis_result['duration_calculation'].add(filter)
                             elif oper in ['<', '>', '=', '<=', '>=']:
                                 analysis_result['duration_comparison'].add(filter)
     for key in analysis_result.keys():
@@ -865,9 +863,9 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
         #         "FILTER (YEAR(?x3) = 650)"
         #     ],
         #     "duration_comparison": [],
-        #     "duration_arithmetic": [],
+        #     "duration_calculation": [],
         #     "timepoint_shift": [],
-        #     "interval_calculation": [],
+        #     "duration_derivation": [],
         #     "granularity_conversion": [
         #         "FILTER (YEAR(?x3) = 650)"
         #     ],
@@ -899,10 +897,15 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
             "statistical":[],
         }
         extraction_results = read_json(extraction_data_path)
-        for item in extraction_results:
-            for k in complexity_dict:
-                if len(item['analysis'].get(k, "")) > 0:
-                        complexity_dict[k].append(item['id'])
+        for item in tqdm(extraction_results):
+            for aspect in item['analysis']:
+                if len(item['analysis'][aspect]) > 0:
+                    if aspect == 'temporal_statistic' or aspect == 'frequency':
+                        complexity_dict['statistical'].append(item['id'])
+                    else:
+                        if aspect not in complexity_dict:
+                            continue
+                        complexity_dict[aspect].append(item['id']) 
         for k, v in complexity_dict.items():
             num_complexity = len(v)
             print(k, num_complexity, 100*(num_complexity/len(extraction_results)))
@@ -970,9 +973,14 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
                 "statistical":[],
             }
             for item in split:
-                for k in complexity_dict:
-                    if len(item['analysis'].get(k,'')) > 0:
-                            complexity_dict[k].append(item['id'])
+                for aspect in item['analysis']:
+                    if len(item['analysis'][aspect]) > 0:
+                        if aspect == 'temporal_statistic' or aspect == 'frequency':
+                            complexity_dict['statistical'].append(item['id'])
+                        else:
+                            if aspect not in complexity_dict:
+                                continue
+                            complexity_dict[aspect].append(item['id']) 
             for k, v in complexity_dict.items():
                 num_complexity = len(v)
                 print(k, num_complexity, 100*(num_complexity/len(split)))
@@ -1059,7 +1067,7 @@ def result_analysis(extraction_path, result_path, test_path):
         else:
             return sum(l)/len(l)
     # "duration_comparison": [],
-    # "duration_arithmetic": [],
+    # "duration_calculation": [],
     # "timepoint_shift": [],
     # "duration_derivation": [],
     # "granularity_conversion": [],
@@ -1097,8 +1105,8 @@ def result_analysis(extraction_path, result_path, test_path):
         if 'temporal_composition' in structural and 'multi_hop' in structural:
             structural_tc_m.append(id)
         has_cmp = len(set(operational).intersection(['timepoint_comparision', 'duration_comparison'])) > 0 
-        # has_arith = len(set(operational).intersection(['granularity_conversion', 'duration_derivation', 'duration_arithmetic', 'timepoint_shift'])) > 0
-        has_arith = len(set(operational).intersection(['duration_derivation', 'duration_arithmetic', 'timepoint_shift'])) > 0
+        # has_arith = len(set(operational).intersection(['granularity_conversion', 'duration_derivation', 'duration_calculation', 'timepoint_shift'])) > 0
+        has_arith = len(set(operational).intersection(['duration_derivation', 'duration_calculation', 'timepoint_shift'])) > 0
         has_aggr = len(set(operational).intersection(['timepoint_ordinal', 'duration_ordinal', 'temporal_statistic', 'fact_counting'])) > 0
         if 'youngest' in item['question']:
             pass
@@ -1192,7 +1200,7 @@ def result_analysis(extraction_path, result_path, test_path):
 
 def draw_complexity_combination_table(extraction_path):
     # "duration_comparison": [],
-    # "duration_arithmetic": [],
+    # "duration_calculation": [],
     # "timepoint_shift": [],
     # "duration_derivation": [],
     # "granularity_conversion": [],
@@ -1203,6 +1211,7 @@ def draw_complexity_combination_table(extraction_path):
     # "temporal_statistic": [],
     # "fact_counting": []
     #class into 16 types
+    print('Analyzing complexity combination of extraction results:', extraction_path)
     structural_none = []
     structural_tc = []
     structural_m = []
@@ -1216,19 +1225,19 @@ def draw_complexity_combination_table(extraction_path):
     for item in data:
         id = item['id']
         complexity_aspects = [aspect for aspect in item['analysis'] if len(item['analysis'][aspect]) > 0]
-        structural = [aspect for aspect in complexity_aspects if aspect in ['temporal_composition', 'multi_hop']]
-        operational = [aspect for aspect in complexity_aspects if aspect not in ['temporal_composition', 'multi_hop']]
+        structural = [aspect for aspect in complexity_aspects if aspect in ['temporal_fact_fusion', 'multi_hop_reasoning']]
+        operational = [aspect for aspect in complexity_aspects if aspect not in ['temporal_fact_fusion', 'multi_hop_reasoning']]
         if len(structural) == 0:
             structural_none.append(id)
-        if 'temporal_composition' in structural:
+        if 'temporal_fact_fusion' in structural:
             structural_tc.append(id)
-        if 'multi_hop' in structural:
+        if 'multi_hop_reasoning' in structural:
             structural_m.append(id)
-        if 'temporal_composition' in structural and 'multi_hop' in structural:
+        if 'temporal_fact_fusion' in structural and 'multi_hop_reasoning' in structural:
             structural_tc_m.append(id)
         has_cmp = len(set(operational).intersection(['duration_comparison', 'duration_comparison'])) > 0 
-        has_arith = len(set(operational).intersection(['granularity_conversion', 'duration_derivation', 'duration_arithmetic', 'timepoint_shift'])) > 0
-        has_aggr = len(set(operational).intersection(['timepoint_ordinal', 'duration_ordinal', 'temporal_statistic', 'fact_counting'])) > 0
+        has_arith = len(set(operational).intersection(['granularity_conversion', 'duration_derivation', 'duration_calculation', 'timepoint_shift'])) > 0
+        has_aggr = len(set(operational).intersection(['timepoint_ordinal', 'duration_ordinal', 'temporal_statistic', 'frequency'])) > 0
         if not has_cmp and not has_arith and not has_aggr:
             operational_none.append(id)
         elif not has_arith and not has_aggr:
@@ -1237,6 +1246,7 @@ def draw_complexity_combination_table(extraction_path):
             operational_ari.append(id)
         else:
             operational_agg.append(id)
+    print('Questions containing both temporal fact fusion and multi hop reasoning')
     print(len(structural_tc_m), ':', 100*len(structural_tc_m)/total_len)  
     # dim1_str = ['structural_none', 'structural_m', 'structural_tc', 'structural_tc_m']
     # dim2_str = ['operational_none', 'operational_cmp', 'operational_ari', 'operational_agg']        
@@ -1278,12 +1288,17 @@ def random_sample_datasets_for_sutime_nuance_check(datasets, population):
 from tqdm import tqdm
 if __name__ == "__main__":
     ## Calculation of Dataset Staticstics
-    # calculate_splits_statics('dataset/RC-TKGQA_final')
+    # calculate_splits_statics('dataset')
 
     ## Analysis of Complexity
-    analysis_temporal_taxonomy('RC-TKGQA')
-    analysis_split_complexity('dataset/RC-TKGQA_final', 'analysis_results/RC-TKGQA/complexity_taxonomy.json', 'figures/tables/table_rc-tkgqa_sparql.json')
-    analysis_temporal_taxonomy('TempQA-WD')
-    analysis_split_complexity('dataset/tempqa-wd/data', 'analysis_results/TempQA-WD/complexity_taxonomy.json', 'figures/tables/table_tempqa-wd_sparql.json')
+    # analysis_temporal_taxonomy('RC-TKGQA')
+    # analysis_split_complexity('dataset', 'analysis_results/RC-TKGQA/complexity_taxonomy.json', 'analysis_results/RC-TKGQA/table_rc_tkgqa_sparql.json')
+    # analysis_temporal_taxonomy('TempQA-WD')
+    # analysis_split_complexity('tempqa-wd', 'analysis_results/TempQA-WD/complexity_taxonomy.json', 'analysis_results/TempQA-WD/table_tempqa_wd_sparql.json')
+
+    # draw_complexity_combination_table('analysis_results/RC-TKGQA/complexity_taxonomy.json')
+    # draw_complexity_combination_table('analysis_results/TempQA-WD/complexity_taxonomy.json') 
+
 
     ## Analysis of Experimental Results
+    result_analysis('analysis_results/RC-TKGQA/complexity_taxonomy.json', '', '')

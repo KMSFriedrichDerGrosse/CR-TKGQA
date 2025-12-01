@@ -18,3 +18,5 @@ baselines/EXAQT/eval_tag_iid.log
 baselines/EXAQT/exaqt/nerd/BLINK/_results
 baselines/EXAQT/exaqt/nerd/BLINK/img
 baselines/EXAQT/exaqt/nerd/BLINK/models
+
+analysis_results
