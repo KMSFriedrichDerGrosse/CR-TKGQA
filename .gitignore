@@ -28,3 +28,11 @@ baselines/SPINACH/output
 baselines/SPINACH/spinach_dataset
 baselines/SPINACH/tests
 baselines/SPINACH/prompt_logs.jsonl
+
+baselines/DirectQA/baseline
+baselines/DirectQA/cache
+baselines/DirectQA/log
+baselines/DirectQA/output
+baselines/DirectQA/utils/cache
+baselines/DirectQA/utils/utils
+baselines/DirectQA/app.log
