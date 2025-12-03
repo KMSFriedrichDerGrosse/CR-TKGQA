@@ -1329,9 +1329,9 @@ if __name__ == "__main__":
     # calculate_splits_statics('../dataset/CR-TKGQA')
 
     ## ------------------------------------ Analysis of Complexity -----------------------------------------------------------------
-    ## this takes about 3 min
+    # # this takes about 3 min
     # analysis_temporal_taxonomy('CR-TKGQA')
-    ## this takes about 3 min
+    # # this takes about 3 min
     # analysis_split_complexity('../dataset/CR-TKGQA', '../analysis_results/CR-TKGQA/complexity_taxonomy.json', '../analysis_results/CR-TKGQA/table_cr_tkgqa_sparql.json')
 
     ## this is fast

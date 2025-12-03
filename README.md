@@ -1,8 +1,29 @@
 # CR-TKGQA
 A Temporal Knowledge Graph Question Answering Dataset Involving Complex Reasoning
 
+# Dataset
+Split of CR-TKGQA:
+- **train**
+- **dev**
+- **test**
+- **test_sample1000_seed1**: benchmark for methods in our paper, use "random.seed(1) random.sample(test)" to generate
 
+Domain of CR-TKGQA:
+- **id**
+- **question**
+- **question_tagged**: Question with entities and literals marked
+- **answer**
+- **answer_type**: Type of answer, one or more in [Entity, Time, Number, Boolean]
+- **topic_entity_label_map**: Map of topic entities in question, in the form of {QID : mention}
+- **gold_entity_label_map**: Map of gold entities in sparql, in the form of {QID : label}
+- **gold_relation_label_map**: Map of gold properties in sparql, in the form of {PID : label}
+- **sparql**
+- **question_creation_date**
+- **origin**: Process of construction of the question, one in [Seed, Generation, Static Entity Augmentation, Temporal Entity Augmentation, Event Time Augmentation]
 
+Extra domain of test:
+- **comp_level**: Compositional level of the question, one in [iid, compositional, zero-shot]
+- **answer_entity_labels**: labels and alians of gold answer entities, used for evaluation of DirectQA & RTQA
 
 ## For Analysis 
 Please turn to `analysis/sorted_dataset_analysis.py`. 
