@@ -16,7 +16,7 @@ import math
 from tqdm import tqdm
 import csv
 import pickle
-
+from tabulate import tabulate
 
 def csv_file_to_dict_list(file_path: str):
     result = []
@@ -1050,6 +1050,10 @@ def result_analysis(extraction_path, result_path, test_path):
     operational_cmp = []
     operational_arith = []
     operational_aggr = []
+    operational_cmp_arith = []
+    operational_cmp_aggr = []
+    operational_arith_aggr = []
+    operational_full = []
     #id2complevel = {item['id']:item['comp_level'] for item in read_json(test_path)}
     id2question = {item['id']:item['question'] for item in read_json(test_path)}
     id2complevel = {item['id']:item['comp_level'] for item in read_json(test_path)}
@@ -1089,42 +1093,20 @@ def result_analysis(extraction_path, result_path, test_path):
                 assert(0)
         if not has_cmp and not has_arith and not has_aggr:
             operational_none.append(id)
-        if has_cmp:
+        elif  has_cmp and not has_arith and not has_aggr:
             operational_cmp.append(id)
-        if has_arith:
+        elif not has_cmp and  has_arith and not has_aggr:
             operational_arith.append(id)
-        if has_aggr:
+        elif not has_cmp and not has_arith and has_aggr:
             operational_aggr.append(id)
-        if id in id2question and (has_cmp and not has_aggr and not has_arith):
-            level1_cmp.append(id)
-        if id in id2question and (not has_cmp and not has_aggr and has_arith):
-            level1_art.append(id)
-        if id in id2question and (not has_cmp and has_aggr and not has_arith):
-            level1_agg.append(id)
-    #将结果按照方法排序
-    # print("--------------CMP--------------------")
-    # count_percentage = 0
-    # for id in level1_cmp:
-    #     if 'fact_counting' in id2aspect[id]:
-    #         print('WITH COUNT', id2question[id], id2aspect[id])
-    #         count_percentage += 1
-    #     else:
-    #         print('WITHOUT COUNT', id2question[id], id2aspect[id])
-    # print("percentage of containing COUNT", count_percentage/len(level1_cmp))
-    # # print("--------------ART--------------------")
-    # count_percentage = 0
-    # for id in level1_art:
-    #     print(id2question[id], id2aspect[id])
-    #     if 'fact_counting' in id2aspect[id]:
-    #         count_percentage += 1
-    # print("percentage of containing COUNT", count_percentage/len(level1_cmp))
-    # print("--------------AGG--------------------")
-    # count_percentage = 0
-    # for id in level1_agg:
-    #     print(id2question[id], id2aspect[id])
-    #     if 'fact_counting' in id2aspect[id]:
-    #         count_percentage += 1
-    # print("percentage of containing COUNT", count_percentage/len(level1_cmp))
+        elif has_cmp and has_arith and not has_aggr:
+            operational_cmp_arith.append(id)
+        elif has_cmp and not has_arith and  has_aggr:
+            operational_cmp_aggr.append(id)
+        elif not has_cmp and has_arith and has_aggr:
+            operational_arith_aggr.append(id)
+        elif has_cmp and has_arith and has_aggr:
+            operational_full.append(id)
     method_f1s = {}
     id_old_to_new = read_json('/home5/dkxu/workspace/dataset-ESWC/checked/process_date_year/old2new.json')
     for item in read_json(result_path):
@@ -1156,48 +1138,121 @@ def result_analysis(extraction_path, result_path, test_path):
         tc_f1 = [f1 for qid, f1 in result.items() if qid in structural_tc]
         m_f1 = [f1 for qid, f1 in result.items() if qid in structural_m]
         tc_m_f1 = [f1 for qid, f1 in result.items() if qid in structural_tc_m]
-        print('structural')
-        print('none', 'number:', len(none_f1), 'average f1', avg(none_f1))
-        print('temporal_compostion', 'number:', len(tc_f1), 'average f1', avg(tc_f1))
-        print('multi_hop', 'number:', len(m_f1), 'average f1', avg(m_f1))
-        print('temporal_compostion_and_multi_hop', 'number:', len(tc_m_f1), 'average f1', avg(tc_m_f1))
-        print('=============================================================================')
-        none_f1 = [f1 for qid, f1 in result.items() if qid in operational_none]
-        print('operational_level0')
-        print('none', 'number:', len(none_f1), 'average_f1', avg(none_f1))
-        # cmp_wo_cnt_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp and qid not in operational_arith and qid not in operational_aggr 
-        #                  and 'fact_counting' not in id2aspect[qid]]
-        # cmp_w_cnt_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp and qid not in operational_arith and qid not in operational_aggr 
-        #                  and 'fact_counting' in id2aspect[qid]]
-        cmp_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp and qid not in operational_arith and qid not in operational_aggr]
-        arith_f1 = [f1 for qid, f1 in result.items() if qid not in operational_cmp and qid in operational_arith and qid not in operational_aggr]
-        aggr_f1 = [f1 for qid, f1 in result.items() if qid not in operational_cmp and qid not in operational_arith and qid in operational_aggr]
-        print('operational_level1')
-        print('comparison', 'number:', len(cmp_f1), 'average_f1', avg(cmp_f1))
-        # print('comparison (without_fact_counting)', 'number:', len(cmp_wo_cnt_f1), 'average_f1', avg(cmp_wo_cnt_f1))
-        # print('comparison (with_fact_counting)', 'number:', len(cmp_w_cnt_f1), 'average_f1', avg(cmp_w_cnt_f1))
-        print('arithmetic',  'number:', len(arith_f1), 'average_f1', avg(arith_f1))
-        print('aggregation',  'number:', len(aggr_f1), 'average_f1', avg(aggr_f1))
-        cmp_arith_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp and qid in operational_arith and qid not in operational_aggr]
-        cmp_aggr_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp and qid not in operational_arith and qid in operational_aggr]
-        arith_aggr_f1 = [f1 for qid, f1 in result.items() if qid not in operational_cmp and qid in operational_arith and qid in operational_aggr]
-        print('operational_level2')
-        print('comparison+arithmetic', 'number:', len(cmp_arith_f1), 'average_f1', avg(cmp_arith_f1))
-        print('comparison+aggregation', 'number:', len(cmp_aggr_f1), 'average_f1', avg(cmp_aggr_f1))
-        print('arithmetic+aggregation', 'number:', len(arith_aggr_f1), 'average_f1', avg(arith_aggr_f1))
-        full_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp and qid in operational_arith and qid in operational_aggr]
-        print('operational_level3')
-        print('full', 'number:', len(full_f1), 'average_f1', avg(full_f1))
+        # print('structural')
+        # print('none', 'number:', len(none_f1), 'average f1', avg(none_f1))
+        # print('temporal_compostion', 'number:', len(tc_f1), 'average f1', avg(tc_f1))
+        # print('multi_hop', 'number:', len(m_f1), 'average f1', avg(m_f1))
+        # print('temporal_compostion_and_multi_hop', 'number:', len(tc_m_f1), 'average f1', avg(tc_m_f1))
+        # print('=============================================================================')
+        # none_f1 = [f1 for qid, f1 in result.items() if qid in operational_none]
+        # print('operational_level0')
+        # print('none', 'number:', len(none_f1), 'average_f1', avg(none_f1))
+        # cmp_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp]
+        # arith_f1 = [f1 for qid, f1 in result.items() if qid in operational_arith]
+        # aggr_f1 = [f1 for qid, f1 in result.items() if qid in operational_aggr]
+        # print('operational_level1')
+        # print('comparison', 'number:', len(cmp_f1), 'average_f1', avg(cmp_f1))
+        # print('arithmetic',  'number:', len(arith_f1), 'average_f1', avg(arith_f1))
+        # print('aggregation',  'number:', len(aggr_f1), 'average_f1', avg(aggr_f1))
+        # cmp_arith_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp_arith]
+        # cmp_aggr_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp_aggr]
+        # arith_aggr_f1 = [f1 for qid, f1 in result.items() if qid in operational_arith_aggr]
+        # print('operational_level2')
+        # print('comparison+arithmetic', 'number:', len(cmp_arith_f1), 'average_f1', avg(cmp_arith_f1))
+        # print('comparison+aggregation', 'number:', len(cmp_aggr_f1), 'average_f1', avg(cmp_aggr_f1))
+        # print('arithmetic+aggregation', 'number:', len(arith_aggr_f1), 'average_f1', avg(arith_aggr_f1))
+        # full_f1 = [f1 for qid, f1 in result.items() if qid in operational_full]
+        # print('operational_level3')
+        # print('full', 'number:', len(full_f1), 'average_f1', avg(full_f1))
 
+        
+        struct_0 = structural_none
+        struct_1 = structural_tc + structural_m
+        struct_2 = structural_tc_m
+        computation_0 = operational_none
+        computation_1 = operational_cmp + operational_arith + operational_aggr
+        computation_2 = operational_arith_aggr + operational_cmp_aggr + operational_cmp_arith
+        computation_3 = operational_full
+        dim1_str = ['structural_0', 'structural_1', 'structural_2']
+        dim2_str = ['computational_0', 'computational_1', 'computational_2', 'computational_3']
+        # print("---------------------------------- computational special -----------------------------------------------------")
+        # hit = 0
+        # total_hit = 0
+        # count, no_count = [], []
+        # for qid in result:
+        #     if qid in operational_cmp:
+        #         total_hit += 1
+        #         if 'fact_counting' in id2aspect[qid]:
+        #             count.append(result[qid])
+        #             hit += 1
+        #         else:
+        #             no_count.append(result[qid])
+        #             print('question', id2question[qid], 'aspect', id2aspect[qid], 'f1', result[qid])
+        # print(avg(count), avg(no_count))
+        # print(hit/total_hit)
+        print("----------------------------------levels of complexity -----------------------------------------------------")
+        for idx, dim in enumerate([struct_0,struct_1,struct_2]):
+            subset_item = [f1 for qid, f1 in result.items() if qid in dim]
+            subset_f1 = avg(subset_item)
+            print('dimension', dim1_str[idx], 'number', len(subset_item), 'f1', subset_f1)
+        for idx, dim in enumerate([computation_0,computation_1,computation_2,computation_3]):
+            subset_item = [f1 for qid, f1 in result.items() if qid in dim]
+            subset_f1 = avg(subset_item)
+            print('dimension', dim2_str[idx], 'number', len(subset_item), 'f1', subset_f1)
         print("----------------------------------2 dimension matrix -----------------------------------------------------")
-        dim1_str = ['structural_none', 'structural_temporal_fact_fusion', 'structural_multi_hop_reasoning']
-        dim2_str = ['operational_none', 'operational_cmp', 'operational_arith', 'operational_aggr']
-        for idx1, dim1 in enumerate([structural_none, structural_tc, structural_m]):
-            for idx2, dim2 in enumerate([operational_none, operational_cmp, operational_arith, operational_aggr]):
+        print("NUMBERS_OF_CELLS")
+        square = []
+        square.append(dim2_str)
+        for idx1, dim1 in enumerate([struct_0, struct_1, struct_2]):
+            square.append([])
+            square[-1].append(dim1_str[idx1])
+            for idx2, dim2 in enumerate([computation_0,computation_1, computation_2, computation_3]):
+                subset_item = [f1 for qid, f1 in result.items() if qid in dim1 and qid in dim2]
+                subset_len = len(subset_item)
+                square[-1].append(subset_len)
+                # print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', subset_f1)
+        print (tabulate(square, headers='firstrow', tablefmt='grid'))
+        print("F1_SCORE_OF_CELLS")
+        square = []
+        square.append(dim2_str)
+        for idx1, dim1 in enumerate([struct_0, struct_1, struct_2]):
+            square.append([])
+            square[-1].append(dim1_str[idx1])
+            for idx2, dim2 in enumerate([computation_0,computation_1, computation_2, computation_3]):
                 subset_item = [f1 for qid, f1 in result.items() if qid in dim1 and qid in dim2]
                 subset_f1 = avg(subset_item)
-                print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', subset_f1)
+                square[-1].append( f"{subset_f1*100:.1f}")
+        print (tabulate(square, headers='firstrow', tablefmt='grid'))
+                # print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', subset_f1)
+        # print("NUMBERS_OF_CELLS")
+        # square = []
 
+        # dim1_str = ['structural_none', 'structural_ff', 'structural_mr', 'structural_ff_mr']
+        # dim2_str = ['operational_none', 'operational_cmp', 'operational_arith', 'operational_aggr', 'operational_cmp_ari', 'operational_cmp_aggr', 'operational_ari_aggr', 'operational_full']
+        # square.append(dim2_str)
+        # for idx1, dim1 in enumerate([structural_none, structural_tc, structural_m, structural_tc_m]):
+        #     square.append([])
+        #     square[-1].append(dim1_str[idx1])
+        #     for idx2, dim2 in enumerate([operational_none, operational_cmp, operational_arith, operational_aggr, operational_cmp_arith, operational_cmp_aggr, operational_arith_aggr, operational_full]):
+        #         subset_item = [f1 for qid, f1 in result.items() if qid in dim1 and qid in dim2]
+        #         subset_len = len(subset_item)
+        #         # print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', f"{subset_f1*100:.1f}")
+        #         square[-1].append(subset_len)
+        # print (tabulate(square, headers='firstrow', tablefmt='grid'))
+        # print("F1SCORE_OF_CELLS")
+        # square = []
+        # dim1_str = ['structural_none', 'structural_ff', 'structural_mr', 'structural_ff_mr']
+        # dim2_str = ['operational_none', 'operational_cmp', 'operational_arith', 'operational_aggr', 'operational_cmp_ari', 'operational_cmp_aggr', 'operational_ari_aggr', 'operational_full']
+        # square.append(dim2_str)
+        # for idx1, dim1 in enumerate([structural_none, structural_tc, structural_m, structural_tc_m]):
+        #     square.append([])
+        #     square[-1].append(dim1_str[idx1])
+        #     for idx2, dim2 in enumerate([operational_none, operational_cmp, operational_arith, operational_aggr, operational_cmp_arith, operational_cmp_aggr, operational_arith_aggr, operational_full]):
+        #         subset_item = [f1 for qid, f1 in result.items() if qid in dim1 and qid in dim2]
+        #         subset_f1 = avg(subset_item)
+        #         # print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', f"{subset_f1*100:.1f}")
+        #         square[-1].append( f"{subset_f1*100:.1f}")
+        # print (tabulate(square, headers='firstrow', tablefmt='grid'))
 
 def draw_complexity_combination_table(extraction_path):
     # "duration_comparison": [],
@@ -1290,5 +1345,5 @@ if __name__ == "__main__":
     ##----------------------------------- Analysis of Experimental Results --------------------------------------------------------
     # print('--------------OLD-------------')
     # result_analysis('../analysis_results/CR-TKGQA/complexity_taxonomy.json', '/home5/dkxu/workspace/dataset-ESWC/all_methods_f1.json', '../dataset/CR-TKGQA/test.json')
-    # print('--------------NEW-------------')
+    print('--------------NEW-------------')
     result_analysis('../analysis_results/CR-TKGQA/complexity_taxonomy.json', '../baselines/results/collect.json', '../dataset/CR-TKGQA/test.json')
