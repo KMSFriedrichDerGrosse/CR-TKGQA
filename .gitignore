@@ -20,3 +20,11 @@ baselines/EXAQT/exaqt/nerd/BLINK/img
 baselines/EXAQT/exaqt/nerd/BLINK/models
 
 analysis_results
+
+baselines/SPINACH/datasets
+baselines/SPINACH/images
+baselines/SPINACH/notebooks
+baselines/SPINACH/output
+baselines/SPINACH/spinach_dataset
+baselines/SPINACH/tests
+baselines/SPINACH/prompt_logs.jsonl
