@@ -286,6 +286,7 @@ def analysis_structural_complexity(data_item, extracted_features):
     #analysis structural complexity, and return a nx_graph_describing the graph skeleton of the SPARQL query
     structural_complexity = []   #temporal_composition, non_temporal
     temporal_variables = []
+    multi_hop_length = 0
     G_sparql = nx.Graph()
     facts = extracted_features['facts']
     # build the sparql skeleton graph.
@@ -362,6 +363,9 @@ def analysis_structural_complexity(data_item, extracted_features):
                 if wdt_num > 0:
                     structural_complexity.append('multi_hop_reasoning')
                     break
+            wdt_ps_pq_num = len([edge for edge in edges if edge['property'].startswith('ps:') or edge['property'].startswith('pq:') or edge['property'].startswith('wdt:')])
+            if wdt_ps_pq_num > multi_hop_length:
+                multi_hop_length = wdt_ps_pq_num
     #Temporal fact fusion
     nodes_to_vars = {}
     for idx, fact in enumerate(facts):
@@ -388,7 +392,7 @@ def analysis_structural_complexity(data_item, extracted_features):
     #         if has_path(G, fact_nodes[i], fact_nodes[j]):
     #                 structural_complexity.append("temporal_composition")
     # structural_complexity = list(set(structural_complexity))
-    return structural_complexity, G_sparql
+    return structural_complexity, G_sparql, multi_hop_length, len(nodes_to_temp_var_noempty)
 
 
 def collect_var(extracted_features):
@@ -438,13 +442,17 @@ def analysis_temporal_taxonomy(dataset):
                 'bind': extracted_features['bind_contents'],
             }
             extraction_result['analysis'] = analysis_filter_bind(extraction_result['vars'], extraction_result['filter'], extraction_result['bind'])
-            structural_complexity, G_sparql = analysis_structural_complexity(item, extracted_features)
+            structural_complexity, G_sparql, multi_hop_length, temporal_composition_count  = analysis_structural_complexity(item, extracted_features)
             extraction_result['sparql_skeleton_graph'] = nx.node_link_data(G_sparql)
-            for complexity in ['temporal_fact_fusion', 'multi_hop_reasoning']:
-                if complexity in structural_complexity:
-                    extraction_result['analysis'][complexity] = [True]
-                else:
-                    extraction_result['analysis'][complexity] = []
+            if 'temporal_fact_fusion' in structural_complexity:
+                extraction_result['analysis']['temporal_fact_fusion'] = [temporal_composition_count]
+            if 'multi_hop_reasoning' in structural_complexity:
+                extraction_result['analysis']['multi_hop_reasoning'] = [multi_hop_length]
+            # for complexity in ['temporal_fact_fusion', 'multi_hop_reasoning']:
+            #     if complexity in structural_complexity:
+            #         extraction_result['analysis'][complexity] = [True]
+            #     else:
+            #         extraction_result['analysis'][complexity] = []
             analysis_aggregation(extraction_result['analysis'], extraction_result['sparql'], extraction_result['vars'])
             extracted_features.pop('filter_contents')
             extracted_features.pop('bind_contents')
@@ -476,13 +484,19 @@ def analysis_temporal_taxonomy(dataset):
                 'bind': extracted_features['bind_contents']
             }
             extraction_result['analysis'] = analysis_filter_bind(extraction_result['vars'], extraction_result['filter'], extraction_result['bind'])
-            structural_complexity, G_sparql = analysis_structural_complexity(item, extracted_features)
+            structural_complexity, G_sparql, multi_hop_length, temporal_composition_count  = analysis_structural_complexity(item, extracted_features)
             extraction_result['sparql_skeleton_graph'] = nx.node_link_data(G_sparql)
-            for complexity in ['temporal_fact_fusion', 'multi_hop_reasoning']:
-                if complexity in structural_complexity:
-                    extraction_result['analysis'][complexity] = [True]
-                else:
-                    extraction_result['analysis'][complexity] = []
+            if 'temporal_fact_fusion' in structural_complexity:
+                extraction_result['analysis']['temporal_fact_fusion'] = [temporal_composition_count]
+            if 'multi_hop_reasoning' in structural_complexity:
+                extraction_result['analysis']['multi_hop_reasoning'] = [multi_hop_length]
+            # structural_complexity, G_sparql = analysis_structural_complexity(item, extracted_features)
+            # extraction_result['sparql_skeleton_graph'] = nx.node_link_data(G_sparql)
+            # for complexity in ['temporal_fact_fusion', 'multi_hop_reasoning']:
+            #     if complexity in structural_complexity:
+            #         extraction_result['analysis'][complexity] = [True]
+            #     else:
+            #         extraction_result['analysis'][complexity] = []
             analysis_aggregation(extraction_result['analysis'], extraction_result['sparql'], extraction_result['vars'])
             extracted_features.pop('filter_contents')
             extracted_features.pop('bind_contents')
@@ -1329,10 +1343,10 @@ if __name__ == "__main__":
     # calculate_splits_statics('../dataset/CR-TKGQA')
 
     ## ------------------------------------ Analysis of Complexity -----------------------------------------------------------------
-    # # this takes about 3 min
-    # analysis_temporal_taxonomy('CR-TKGQA')
-    # # this takes about 3 min
-    # analysis_split_complexity('../dataset/CR-TKGQA', '../analysis_results/CR-TKGQA/complexity_taxonomy.json', '../analysis_results/CR-TKGQA/table_cr_tkgqa_sparql.json')
+    # this takes about 3 min
+    analysis_temporal_taxonomy('CR-TKGQA')
+    # this takes about 3 min
+    analysis_split_complexity('../dataset/CR-TKGQA', '../analysis_results/CR-TKGQA/complexity_taxonomy.json', '../analysis_results/CR-TKGQA/table_cr_tkgqa_sparql.json')
 
     ## this is fast
     # analysis_temporal_taxonomy('TempQA-WD')
