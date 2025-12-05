@@ -20,6 +20,9 @@ baselines/EXAQT/exaqt/nerd/BLINK/img
 baselines/EXAQT/exaqt/nerd/BLINK/models
 
 analysis_results
+analysis/.vscode
+analysis/__pycache__
+analysis/sparql_ply/__pycache__
 
 baselines/SPINACH/datasets
 baselines/SPINACH/images
