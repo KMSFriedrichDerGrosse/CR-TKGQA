@@ -30,3 +30,6 @@ Please turn to `analysis/sorted_dataset_analysis.py`.
 The environment needed for this script is simple, you only need to install tqdm and networkx==3.4.2.
 
 Results are in `analysis_results`.
+
+- run analysis/sorted_dataset_analysis.py to get the results in Tab.3 (# calculate_splits_statics), Tab.4 (# analysis_temporal_taxonomy & # analysis_split_complexity) and Tab.5 (# result_analysis)
+- run analysis/statistic.py to get the results in Tab.6
