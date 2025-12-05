@@ -38,12 +38,10 @@ def main(method: str):
                 else:
                     wo_comp2id[key].append(example['id'])
 
-
     w_f1 = dict()
     w_count = dict()
     wo_f1 = dict()
     wo_count = dict()
-    
 
     for key in w_comp2id.keys():
         if key not in w_f1.keys():
@@ -79,9 +77,6 @@ def main(method: str):
 
     for key in ['temporal_fact_fusion','multi_hop_reasoning','timepoint_comparision','duration_comparison','duration_derivation','duration_calculation','timepoint_shift','granularity_conversion','timepoint_ordinal','duration_ordinal','temporal_statistic']:
         print(f'w: {round(w_f1[key] / w_count[key] if w_count[key] > 0 else 0.0, 4)}\t{w_count[key]}\t\two: {round(wo_f1[key] / wo_count[key] if wo_count[key] > 0 else 0.0, 4)}\t{wo_count[key]}\t\t{key}')
-
-
-
 
 if __name__ == "__main__":
     main('SPINACH')

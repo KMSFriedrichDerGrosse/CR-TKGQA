@@ -896,6 +896,9 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
                 if len(item['analysis'][aspect]) > 0:
                     if aspect == 'temporal_statistic' or aspect == 'frequency':
                         complexity_dict['statistical'].append(item['id'])
+                    elif aspect == "multi_hop_reasoning":
+                        if item['analysis'][aspect][0] >= 1:
+                            complexity_dict[aspect].append(item['id'])
                     else:
                         if aspect not in complexity_dict:
                             continue
@@ -971,6 +974,9 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
                     if len(item['analysis'][aspect]) > 0:
                         if aspect == 'temporal_statistic' or aspect == 'frequency':
                             complexity_dict['statistical'].append(item['id'])
+                        elif aspect == "multi_hop_reasoning":
+                            if item['analysis'][aspect][0] >= 1:
+                                complexity_dict[aspect].append(item['id'])
                         else:
                             if aspect not in complexity_dict:
                                 continue
@@ -1300,30 +1306,20 @@ def draw_complexity_combination_table(extraction_path):
     # "fact_counting": []
     #class into 16 types
     print('Analyzing complexity combination of extraction results:', extraction_path)
-    structural_none = []
-    structural_tc = []
-    structural_m = []
-    structural_tc_m = []
-    operational_none = []
-    operational_cmp = []
-    operational_ari = []
-    operational_agg = []
     data = read_json(extraction_path)
     total_len = len(data)
+    structural_m = []
+    structural_tc = []
     for item in data:
         id = item['id']
         complexity_aspects = [aspect for aspect in item['analysis'] if len(item['analysis'][aspect]) > 0]
-        structural = [aspect for aspect in complexity_aspects if aspect in ['temporal_fact_fusion', 'multi_hop_reasoning']]
-        operational = [aspect for aspect in complexity_aspects if aspect not in ['temporal_fact_fusion', 'multi_hop_reasoning']]
+        if 'multi_hop_reasoning' in complexity_aspects and item['analysis']['multi_hop_reasoning'][0] >= 1:
+            structural_m.append(id)
+        if 'temporal_fact_fusion' in complexity_aspects:
+            structural_tc.append(id)
+    structural_tc_m = set(structural_m).intersection(structural_tc)
     print('Questions containing both temporal fact fusion and multi hop reasoning')
-    print(len(structural_tc_m), ':', 100*len(structural_tc_m)/total_len)  
-    # dim1_str = ['structural_none', 'structural_m', 'structural_tc', 'structural_tc_m']
-    # dim2_str = ['operational_none', 'operational_cmp', 'operational_ari', 'operational_agg']        
-    # for idx1, dim1 in enumerate([structural_none, structural_m, structural_tc, structural_tc_m]):
-    #     for idx2, dim2 in enumerate([operational_none, operational_cmp, operational_ari, operational_agg]):
-    #         intersection_size = len(set(dim1).intersection(dim2))
-    #         intersection_percentage = 100*intersection_size/total_len
-    #         print(dim1_str[idx1], 'X', dim2_str[idx2], ':', intersection_percentage)
+    print(len(structural_tc_m), ':', 100*len(structural_tc_m)/total_len)
 
 
 
@@ -1361,17 +1357,17 @@ if __name__ == "__main__":
     # calculate_splits_statics('../dataset/CR-TKGQA')
 
     ## ------------------------------------ Analysis of Complexity -----------------------------------------------------------------
-    # this takes about 3 min
-    analysis_temporal_taxonomy('CR-TKGQA')
+    # # this takes about 3 min
+    # analysis_temporal_taxonomy('CR-TKGQA')
     # this takes about 3 min
     analysis_split_complexity('../dataset/CR-TKGQA', '../analysis_results/CR-TKGQA/complexity_taxonomy.json', '../analysis_results/CR-TKGQA/table_cr_tkgqa_sparql.json')
 
     ## this is fast
-    # analysis_temporal_taxonomy('TempQA-WD')
-    # analysis_split_complexity('../dataset/tempqa-wd', '../analysis_results/TempQA-WD/complexity_taxonomy.json', '../analysis_results/TempQA-WD/table_tempqa_wd_sparql.json')
+    analysis_temporal_taxonomy('TempQA-WD')
+    analysis_split_complexity('../dataset/tempqa-wd', '../analysis_results/TempQA-WD/complexity_taxonomy.json', '../analysis_results/TempQA-WD/table_tempqa_wd_sparql.json')
 
-    # draw_complexity_combination_table('../analysis_results/CR-TKGQA/complexity_taxonomy.json')
-    # draw_complexity_combination_table('../analysis_results/TempQA-WD/complexity_taxonomy.json') 
+    draw_complexity_combination_table('../analysis_results/CR-TKGQA/complexity_taxonomy.json')
+    draw_complexity_combination_table('../analysis_results/TempQA-WD/complexity_taxonomy.json') 
 
 
     ##----------------------------------- Analysis of Experimental Results --------------------------------------------------------
