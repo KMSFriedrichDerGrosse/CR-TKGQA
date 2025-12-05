@@ -83,7 +83,7 @@ wikidata_prefix = {
 wikidata_prefix_list_long_to_short = [(k, v) for k, v in wikidata_prefix.items()]
 wikidata_prefix_list_long_to_short.sort(key = lambda i: i[1], reverse=True)
 
-wikidata_properties = {item['ID']:item for item in json.load(open('/home5/yhbao/git/ComplexTKBQA/all_wikidata_property.json'))}
+wikidata_properties = {item['ID']:item for item in json.load(open('../resources/all_wikidata_property.json'))}
 
 
 def replace_xsd_iri_with_prefix(sparql_expression):
@@ -121,7 +121,6 @@ def analysis_temporal_taxonomy_sparql(sparql):
         return str
     
     def convert_triple_into_nary_facts(triples):
-        #first, convert triple pattern to python list (3ary)
         temp = []
         for triple in triples:
             subject = convert_full_iri_to_short(triple.subj.value)
@@ -134,28 +133,23 @@ def analysis_temporal_taxonomy_sparql(sparql):
         for triple in triples:
             if triple[1].startswith('p:'):
                 stmt_nodes.append(triple[2])
-        #grouping triples into facts.
         used_triples = []
         facts = []
-        #those n-ary
         for stmt_node in stmt_nodes:
             nary_fact = {'stmt_node':stmt_node, 'triples':[], 'external_variable':[], 
                          'number_of_temporal_external_variables':0}
             for triple in triples:
                 if triple[0] == stmt_node or triple[2] == stmt_node:
                     if triple[0].startswith('?') and triple[0] != stmt_node:
-                        #subject must be a entity
                         nary_fact['external_variable'].append({'variable': triple[0], 'temporal_value':False})
                     if triple[2].startswith('?') and triple[2] != stmt_node: 
                         if wikidata_properties.get(triple[1].split(':')[1], {'datatype':None})['datatype'] == "T":   
-                            #temporal property 
                             nary_fact['external_variable'].append({'variable': triple[2], 
                                                                    'temporal_property':triple[1],
                                                                    'temporal_value':True,
                                                                    'temporal_type':'time_point'})
                             nary_fact['number_of_temporal_external_variables'] += 1
-                        elif triple[1].split(':')[1] in ['P2047', 'P2097']:     #特殊考虑
-                            #temporal property 
+                        elif triple[1].split(':')[1] in ['P2047', 'P2097']:
                             nary_fact['external_variable'].append({'variable': triple[2], 
                                                                    'temporal_property':triple[1],
                                                                    'temporal_value':True,
@@ -166,24 +160,20 @@ def analysis_temporal_taxonomy_sparql(sparql):
                     nary_fact['triples'].append(triple)
                     used_triples.append(triple)
             facts.append(nary_fact)
-        #those binary
         for triple in triples:
             if triple not in used_triples:
                 binary_fact = {'stmt_node':None, 'triples':[triple], 'external_variable':[],
                                'number_of_temporal_external_variables':0}
                 if triple[0].startswith('?'):
-                    #subject must be a entity
                     binary_fact['external_variable'].append({'variable': triple[0], 'temporal_value':False})
                 if triple[2].startswith('?'): 
                     if wikidata_properties.get(triple[1].split(':')[1], {'datatype':None})['datatype'] == "T":    
-                        #temporal property 
                         binary_fact['external_variable'].append({'variable': triple[2], 
                                                                  'temporal_property':triple[1],
                                                                  'temporal_value':True,
                                                                  'temporal_type':'time_point'})
                         binary_fact['number_of_temporal_external_variables'] += 1
-                    elif triple[1].split(':')[1] in ['P2047', 'P2097']:     #特殊考虑
-                        #temporal property 
+                    elif triple[1].split(':')[1] in ['P2047', 'P2097']:
                         binary_fact['external_variable'].append({'variable': triple[2], 
                                                                 'temporal_property':triple[1],
                                                                 'temporal_value':True,
@@ -193,8 +183,6 @@ def analysis_temporal_taxonomy_sparql(sparql):
                         binary_fact['external_variable'].append({'variable': triple[2], 'temporal_value':False})
                 facts.append(binary_fact)
         return facts
-
-
 
     def has_type(component, types):
         if isinstance(types, list):
@@ -231,7 +219,6 @@ def analysis_temporal_taxonomy_sparql(sparql):
         convert_node_to_dict(element, node_dict, None)
         return node_dict
 
-    # Parse SPARQL queries to analysis complexity
     try:
         sparql_expanded = expand_syntax_form(sparql, wikidata_prefix)
         parse_tree = parse_sparql(sparql_expanded)
@@ -240,7 +227,6 @@ def analysis_temporal_taxonomy_sparql(sparql):
         traceback.print_exc()
         parse_tree = None
         return None
-    #grouping triple patterns into statement ，collectiing solution modifier，bind，filter
     if parse_tree is not None:
         elements = []
         triples = []
@@ -284,17 +270,15 @@ def analysis_temporal_taxonomy_sparql(sparql):
 
 
 def analysis_structural_complexity(data_item, extracted_features):
-    #analysis structural complexity, and return a nx_graph_describing the graph skeleton of the SPARQL query
-    structural_complexity = []   #temporal_composition, non_temporal
+    structural_complexity = []
     temporal_variables = []
     multi_hop_length = 10
     G_sparql = nx.Graph()
     facts = extracted_features['facts']
-    # build the sparql skeleton graph.
     for fact in facts:
-        if 'wdt:P31' in fact['triples'][0][1]:  #discard wdt:P31
+        if 'wdt:P31' in fact['triples'][0][1]:
             continue
-        elif 'wikibase:' in fact['triples'][0][1]:   #discard wikibase:
+        elif 'wikibase:' in fact['triples'][0][1]:
             continue
         temporal_variables += ([var for var in fact['external_variable'] if var['temporal_value']])
         for triple in fact['triples']:
@@ -303,7 +287,7 @@ def analysis_structural_complexity(data_item, extracted_features):
                 s_type, o_type = ['var' if s.startswith("?") else 'uri'], 'stmt'
             elif triple[1].startswith('ps:') or triple[1].startswith('pq:'):
                 s_type, o_type = 'stmt', ('var' if s.startswith("?") else 'uri')
-            else:   #wdt:...., schema:..
+            else:
                 s_type, o_type = ['var' if s.startswith("?") else 'uri'], ['var' if o.startswith("?") else 'uri']
             if s not in G_sparql:
                 G_sparql.add_nodes_from([(s, {'type':s_type})])
@@ -314,7 +298,6 @@ def analysis_structural_complexity(data_item, extracted_features):
     for bind in extracted_features['binds']:
         AS_left, AS_right = bind[0:bind.index('AS')], bind[bind.index('AS'):]
         left_variables, right_variable = list(re.findall(r"\?\w+", AS_left)), re.findall(r"\?\w+", AS_right)[0]
-        # we see bind as old variables pointing to the new_variable
         G_sparql.add_nodes_from([(right_variable, {'type':'var'})])
         for var in left_variables:
             if var not in G_sparql:
@@ -342,7 +325,6 @@ def analysis_structural_complexity(data_item, extracted_features):
                 temporal_external_variables.append(var['variable'])
             else:
                 non_temporal_external_variables.append(var['variable'])
-    #Multi-hop Reasoning
     strong_components = list(nx.connected_components(G_sparql_fact_only))
     for component in strong_components:
         external_vars_in_component = []
@@ -373,32 +355,13 @@ def analysis_structural_complexity(data_item, extracted_features):
             wdt_ps_pq_num = len([edge for edge in edges if edge['property'].startswith('ps:') or edge['property'].startswith('pq:') or edge['property'].startswith('wdt:')])
             if wdt_ps_pq_num < multi_hop_length:
                 multi_hop_length = wdt_ps_pq_num
-    #Temporal fact fusion
     nodes_to_vars = {}
     for idx, fact in enumerate(facts):
         temporal_external_variables = [var['variable'] for var in fact['external_variable'] if var['temporal_value']]
         nodes_to_vars[f"fact_{idx}"] = temporal_external_variables
-    # for idx, filter_or_bind in enumerate(extracted_features['filters'] + extracted_features['binds']):
-    #     temporal_external_variables = list(set(re.findall("\?\w+", filter_or_bind)))
-    #     nodes_to_vars[f"filter_or_bind_{idx}"] = temporal_external_variables
     nodes_to_temp_var_noempty = {k:v for k,v in nodes_to_vars.items() if len(v) > 0}
     if len(nodes_to_temp_var_noempty) >= 2:
         structural_complexity.append("temporal_fact_fusion")
-    # G = nx.Graph()
-    # for node in nodes_to_vars:
-    #     G.add_node(node)
-    # nodes_to_vars_list = [(k,v) for k, v in nodes_to_vars.items()]
-    # for i in range(0, len(nodes_to_vars_list)):
-    #     for j in range(i+1, len(nodes_to_vars_list)):
-    #         if len(set(nodes_to_vars_list[i][1]).intersection(nodes_to_vars_list[j][1])) > 0:
-    #             G.add_edge(nodes_to_vars_list[i][0], nodes_to_vars_list[j][0])
-    # #find fact patterns connecting through this graph
-    # fact_nodes = [node for node in nodes_to_vars if 'fact' in node]
-    # for i in range(0, len(fact_nodes)):
-    #     for j in range(i+1, len(fact_nodes)):
-    #         if has_path(G, fact_nodes[i], fact_nodes[j]):
-    #                 structural_complexity.append("temporal_composition")
-    # structural_complexity = list(set(structural_complexity))
     return structural_complexity, G_sparql, multi_hop_length, len(nodes_to_temp_var_noempty)
 
 
@@ -440,10 +403,7 @@ def analysis_temporal_taxonomy(dataset):
         for split in ['test', 'dev', 'train']:
             total_data += json.load(open(f'{dataset_dir}/{split}.json', 'r'))
         for item in tqdm(total_data):
-        # data = [example for example in total_data if example['id'] == '54_27_gen-24']
-        # for item in data:
             extracted_features = analysis_temporal_taxonomy_sparql(item['sparql'])
-            # print(json.dumps(extracted_features, ensure_ascii=False, indent=4))
             time_point_vars, duration_vars, nontime_vars = collect_var(extracted_features)
             extraction_result = {
                 'id':item['id'],
@@ -464,13 +424,7 @@ def analysis_temporal_taxonomy(dataset):
             extraction_result['sparql_skeleton_graph'] = nx.node_link_data(G_sparql)
             if 'temporal_fact_fusion' in structural_complexity:
                 extraction_result['analysis']['temporal_fact_fusion'] = [temporal_composition_count]
-            # if 'multi_hop_reasoning' in structural_complexity:
             extraction_result['analysis']['multi_hop_reasoning'] = [get_multi_hop_length_by_fact_traverse(extracted_features['facts'])]
-            # for complexity in ['temporal_fact_fusion', 'multi_hop_reasoning']:
-            #     if complexity in structural_complexity:
-            #         extraction_result['analysis'][complexity] = [True]
-            #     else:
-            #         extraction_result['analysis'][complexity] = []
             analysis_aggregation(extraction_result['analysis'], extraction_result['sparql'], extraction_result['vars'])
             extracted_features.pop('filter_contents')
             extracted_features.pop('bind_contents')
@@ -506,15 +460,7 @@ def analysis_temporal_taxonomy(dataset):
             extraction_result['sparql_skeleton_graph'] = nx.node_link_data(G_sparql)
             if 'temporal_fact_fusion' in structural_complexity:
                 extraction_result['analysis']['temporal_fact_fusion'] = [temporal_composition_count]
-            # if 'multi_hop_reasoning' in structural_complexity:
             extraction_result['analysis']['multi_hop_reasoning'] = [get_multi_hop_length_by_fact_traverse(extracted_features['facts'])]
-            # structural_complexity, G_sparql = analysis_structural_complexity(item, extracted_features)
-            # extraction_result['sparql_skeleton_graph'] = nx.node_link_data(G_sparql)
-            # for complexity in ['temporal_fact_fusion', 'multi_hop_reasoning']:
-            #     if complexity in structural_complexity:
-            #         extraction_result['analysis'][complexity] = [True]
-            #     else:
-            #         extraction_result['analysis'][complexity] = []
             analysis_aggregation(extraction_result['analysis'], extraction_result['sparql'], extraction_result['vars'])
             extracted_features.pop('filter_contents')
             extracted_features.pop('bind_contents')
@@ -559,8 +505,6 @@ def analysis_aggregation(analysis_result: dict, sparql, vars):
             elif c == 'L':
                 if len(sparql) > i + len('LIMIT') and sparql[i : i + len('LIMIT')] == 'LIMIT':
                     order_bys.append(sparql[prev : i])
-        # pattern = r'ORDER BY(.*?)LIMIT'
-        # matches = re.findall(pattern, sparql)
         return [match.strip() for match in order_bys]
     analysis_result['timepoint_ordinal'] = set()
     analysis_result['duration_ordinal'] = set()
@@ -575,7 +519,6 @@ def analysis_aggregation(analysis_result: dict, sparql, vars):
             analysis_result['temporal_statistic'].add(select)
         if 'MAX' in select or 'MIN' in select:
             if '*' in select or '/' in select:
-                # must be a duration
                 analysis_result['duration_ordinal'].add(select)
                 if '365' not in select and select not in analysis_result['duration_calculation']:
                     analysis_result['duration_calculation'].append(select)
@@ -613,7 +556,6 @@ def analysis_aggregation(analysis_result: dict, sparql, vars):
         has_time_point_var = False
         has_duration_var = False
         if '*' in order_by or '/' in order_by:
-            # must be a duration
             analysis_result['duration_ordinal'].add(order_by)
             if '365' not in order_by and order_by not in analysis_result['duration_calculation']:
                 analysis_result['duration_calculation'].append(order_by)
@@ -650,8 +592,6 @@ def analysis_aggregation(analysis_result: dict, sparql, vars):
     analysis_result['temporal_statistic'] = list(analysis_result['temporal_statistic'])
     analysis_result['fact_counting'] = list(analysis_result['fact_counting'])
 
-
-
 def analysis_filter_bind(vars, filters, binds):
     analysis_result = {
         'timepoint_comparision': set(),
@@ -666,7 +606,6 @@ def analysis_filter_bind(vars, filters, binds):
     for var in vars['time_point']:
         for bind in binds.keys():
             is_time_point = True
-            # expression = binds[bind][bind]['children'][0]
             new_var = binds[bind][bind]['children'][1]
             assert f'AS {new_var}' in bind
             for content in binds[bind].keys():
@@ -733,7 +672,6 @@ def analysis_filter_bind(vars, filters, binds):
     new_vars = list()
     for var in vars['derived_duration'] + vars['duration']:
         for bind in binds.keys():
-            # expression = binds[bind][bind]['children'][0]
             new_var = binds[bind][bind]['children'][1]
             assert f'AS {new_var}' in bind
             for content in binds[bind].keys():
@@ -851,30 +789,6 @@ def get_isomorphism_skeletons(graphs, abstract_relation=False):
 
 
 def analysis_split_complexity(data_dir, extraction_data_path, table_output_path):
-    #anaysis statics of complexity for each split 
-        #     "timepoint_comparision": [
-        #         "FILTER (xsd:date(?x6) > xsd:date(?x4))",
-        #         "FILTER (YEAR(?x3) = 650)"
-        #     ],
-        #     "duration_comparison": [],
-        #     "duration_calculation": [],
-        #     "timepoint_shift": [],
-        #     "duration_derivation": [],
-        #     "granularity_conversion": [
-        #         "FILTER (YEAR(?x3) = 650)"
-        #     ],
-        #     "frequency": [],
-        #     "temporal_composition": [],
-        #     "multi_hop": [
-        #         true
-        #     ],
-        #     "timepoint_ordinal": [
-        #         "(xsd:date(?x6))"
-        #     ],
-        #     "duration_ordinal": [],
-        #     "temporal_statistic": [],
-        #     "fact_counting": []
-        # },
     if 'tempqa' in data_dir:
         result_table = {'all':{}}
         complexity_dict = { 
@@ -907,7 +821,6 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
             num_complexity = len(v)
             print(k, num_complexity, 100*(num_complexity/len(extraction_results)))
             result_table['all'][k] = {'number': num_complexity, 'percentage':100*(num_complexity/len(extraction_results))}
-        #number_skeletons
         sparql_structures = [nx.node_link_graph(item['sparql_skeleton_graph']) for item in extraction_results]
         number_Canonical_LF = len(get_isomorphism_skeletons(sparql_structures, abstract_relation=False))
         number_Struct = len(get_isomorphism_skeletons(sparql_structures, abstract_relation=True))
@@ -928,7 +841,6 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
             question_dict = {item['id']:item for item in split_data}
             id2questiontype = {item['id']:item['origin'] for item in split_data}
             total_ids = list(question_dict.keys())
-            #distinct three types of question via qid
             for id in total_ids:
                 if id2questiontype[id] == 'Seed':
                     seed_ids.append(id)
@@ -985,7 +897,6 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
                 num_complexity = len(v)
                 print(k, num_complexity, 100*(num_complexity/len(split)))
                 result_table[result_table_key][k] = {'number':num_complexity, 'percentage':100*(num_complexity/len(split))}
-            #number_skeletons
             sparql_structures = [nx.node_link_graph(item['sparql_skeleton_graph']) for item in split]
             number_Canonical_LF = len(get_isomorphism_skeletons(sparql_structures, abstract_relation=False))
             number_Struct = len(get_isomorphism_skeletons(sparql_structures, abstract_relation=True))
@@ -995,7 +906,6 @@ def analysis_split_complexity(data_dir, extraction_data_path, table_output_path)
 
 
 def calculate_splits_statics(data_dir):
-    #calculate statics for each split 
     total_seeds, total_generalized, total_literal_comp, total_entity_comp, total_temp_comp = 0 ,0 ,0 ,0 ,0
     for split in ['train', 'dev', 'test']:
         data_path = f'{data_dir}/{split}.json'
@@ -1053,33 +963,6 @@ def result_analysis(extraction_path, result_path, test_path):
             return 0
         else:
             return sum(l)/len(l)
-        # "analysis": {
-        #     "timepoint_comparision": [
-        #         "FILTER (xsd:date(?x6) > xsd:date(?x4))",
-        #         "FILTER (YEAR(?x3) = 650)"
-        #     ],
-        #     "duration_comparison": [],
-        #     "duration_calculation": [],
-        #     "timepoint_shift": [],
-        #     "duration_derivation": [],
-        #     "granularity_conversion": [
-        #         "FILTER (YEAR(?x3) = 650)"
-        #     ],
-        #     "frequency": [],
-        #     "temporal_fact_fusion": [
-        #         true
-        #     ],
-        #     "multi_hop_reasoning": [
-        #         true
-        #     ],
-        #     "timepoint_ordinal": [
-        #         "(xsd:date(?x6))"
-        #     ],
-        #     "duration_ordinal": [],
-        #     "temporal_statistic": [],
-        #     "fact_counting": []
-        # },
-    #class into 16 types
     structural_none = []
     structural_tc = []
     structural_m = []
@@ -1092,7 +975,6 @@ def result_analysis(extraction_path, result_path, test_path):
     operational_cmp_aggr = []
     operational_arith_aggr = []
     operational_full = []
-    #id2complevel = {item['id']:item['comp_level'] for item in read_json(test_path)}
     id2question = {item['id']:item['question'] for item in read_json(test_path)}
     id2complevel = {item['id']:item['comp_level'] for item in read_json(test_path)}
     data = read_json(extraction_path)
@@ -1146,25 +1028,13 @@ def result_analysis(extraction_path, result_path, test_path):
         elif has_cmp and has_arith and has_aggr:
             operational_full.append(id)
     method_f1s = {}
-    id_old_to_new = read_json('/home5/dkxu/workspace/dataset-ESWC/checked/process_date_year/old2new.json')
     for item in read_json(result_path):
         qid = item['id']
-        if 'eval' in item:      #old version
-            if 'Direct' not in item['eval']:
-                continue
-            if qid not in id_old_to_new:
-                continue
-            for method, feature in item['eval'].items():
-                f1 = feature['f1']
-                if method not in method_f1s:
-                    method_f1s[method] = {}
-                method_f1s[method][id_old_to_new[qid]] = f1
-        else:                   #new_version
-            for method, feature in item['methods'].items():
-                f1 = feature['evaluate']['f1']
-                if method not in method_f1s:
-                    method_f1s[method] = {}
-                method_f1s[method][qid] = f1
+        for method, feature in item['methods'].items():
+            f1 = feature['evaluate']['f1']
+            if method not in method_f1s:
+                method_f1s[method] = {}
+            method_f1s[method][qid] = f1
     for method, result in method_f1s.items():
         print('--------------------------------------------------------------------------------------------\n\n\n')
         print(method)
@@ -1172,139 +1042,9 @@ def result_analysis(extraction_path, result_path, test_path):
         print('iid f1', avg([f1 for qid, f1 in result.items() if id2complevel[qid] == 'iid']))
         print('compositional f1', avg([f1 for qid, f1 in result.items() if id2complevel[qid] == 'compositional']))
         print('zero-shot f1', avg([f1 for qid, f1 in result.items() if id2complevel[qid] == 'zero-shot']))
-        none_f1 = [f1 for qid, f1 in result.items() if qid in structural_none]
-        tc_f1 = [f1 for qid, f1 in result.items() if qid in structural_tc]
-        m_f1 = [f1 for qid, f1 in result.items() if qid in structural_m]
-        tc_m_f1 = [f1 for qid, f1 in result.items() if qid in structural_tc_m]
-        # print('structural')
-        # print('none', 'number:', len(none_f1), 'average f1', avg(none_f1))
-        # print('temporal_compostion', 'number:', len(tc_f1), 'average f1', avg(tc_f1))
-        # print('multi_hop', 'number:', len(m_f1), 'average f1', avg(m_f1))
-        # print('temporal_compostion_and_multi_hop', 'number:', len(tc_m_f1), 'average f1', avg(tc_m_f1))
-        # print('=============================================================================')
-        # none_f1 = [f1 for qid, f1 in result.items() if qid in operational_none]
-        # print('operational_level0')
-        # print('none', 'number:', len(none_f1), 'average_f1', avg(none_f1))
-        # cmp_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp]
-        # arith_f1 = [f1 for qid, f1 in result.items() if qid in operational_arith]
-        # aggr_f1 = [f1 for qid, f1 in result.items() if qid in operational_aggr]
-        # print('operational_level1')
-        # print('comparison', 'number:', len(cmp_f1), 'average_f1', avg(cmp_f1))
-        # print('arithmetic',  'number:', len(arith_f1), 'average_f1', avg(arith_f1))
-        # print('aggregation',  'number:', len(aggr_f1), 'average_f1', avg(aggr_f1))
-        # cmp_arith_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp_arith]
-        # cmp_aggr_f1 = [f1 for qid, f1 in result.items() if qid in operational_cmp_aggr]
-        # arith_aggr_f1 = [f1 for qid, f1 in result.items() if qid in operational_arith_aggr]
-        # print('operational_level2')
-        # print('comparison+arithmetic', 'number:', len(cmp_arith_f1), 'average_f1', avg(cmp_arith_f1))
-        # print('comparison+aggregation', 'number:', len(cmp_aggr_f1), 'average_f1', avg(cmp_aggr_f1))
-        # print('arithmetic+aggregation', 'number:', len(arith_aggr_f1), 'average_f1', avg(arith_aggr_f1))
-        # full_f1 = [f1 for qid, f1 in result.items() if qid in operational_full]
-        # print('operational_level3')
-        # print('full', 'number:', len(full_f1), 'average_f1', avg(full_f1))
 
-        
-        struct_0 = structural_none
-        struct_1 = structural_tc + structural_m
-        struct_2 = structural_tc_m
-        computation_0 = operational_none
-        computation_1 = operational_cmp + operational_arith + operational_aggr
-        computation_2 = operational_arith_aggr + operational_cmp_aggr + operational_cmp_arith
-        computation_3 = operational_full
-        dim1_str = ['structural_0', 'structural_1', 'structural_2']
-        dim2_str = ['computational_0', 'computational_1', 'computational_2', 'computational_3']
-        # print("---------------------------------- computational special -----------------------------------------------------")
-        # hit = 0
-        # total_hit = 0
-        # count, no_count = [], []
-        # for qid in result:
-        #     if qid in operational_cmp:
-        #         total_hit += 1
-        #         if 'fact_counting' in id2aspect[qid]:
-        #             count.append(result[qid])
-        #             hit += 1
-        #         else:
-        #             no_count.append(result[qid])
-        #             print('question', id2question[qid], 'aspect', id2aspect[qid], 'f1', result[qid])
-        # print(avg(count), avg(no_count))
-        # print(hit/total_hit)
-        print("----------------------------------levels of complexity -----------------------------------------------------")
-        for idx, dim in enumerate([struct_0,struct_1,struct_2]):
-            subset_item = [f1 for qid, f1 in result.items() if qid in dim]
-            subset_f1 = avg(subset_item)
-            print('dimension', dim1_str[idx], 'number', len(subset_item), 'f1', subset_f1)
-        for idx, dim in enumerate([computation_0,computation_1,computation_2,computation_3]):
-            subset_item = [f1 for qid, f1 in result.items() if qid in dim]
-            subset_f1 = avg(subset_item)
-            print('dimension', dim2_str[idx], 'number', len(subset_item), 'f1', subset_f1)
-        print("----------------------------------2 dimension matrix -----------------------------------------------------")
-        print("NUMBERS_OF_CELLS")
-        square = []
-        square.append(dim2_str)
-        for idx1, dim1 in enumerate([struct_0, struct_1, struct_2]):
-            square.append([])
-            square[-1].append(dim1_str[idx1])
-            for idx2, dim2 in enumerate([computation_0,computation_1, computation_2, computation_3]):
-                subset_item = [f1 for qid, f1 in result.items() if qid in dim1 and qid in dim2]
-                subset_len = len(subset_item)
-                square[-1].append(subset_len)
-                # print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', subset_f1)
-        print (tabulate(square, headers='firstrow', tablefmt='grid'))
-        print("F1_SCORE_OF_CELLS")
-        square = []
-        square.append(dim2_str)
-        for idx1, dim1 in enumerate([struct_0, struct_1, struct_2]):
-            square.append([])
-            square[-1].append(dim1_str[idx1])
-            for idx2, dim2 in enumerate([computation_0,computation_1, computation_2, computation_3]):
-                subset_item = [f1 for qid, f1 in result.items() if qid in dim1 and qid in dim2]
-                subset_f1 = avg(subset_item)
-                square[-1].append( f"{subset_f1*100:.1f}")
-        print (tabulate(square, headers='firstrow', tablefmt='grid'))
-                # print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', subset_f1)
-        # print("NUMBERS_OF_CELLS")
-        # square = []
-
-        # dim1_str = ['structural_none', 'structural_ff', 'structural_mr', 'structural_ff_mr']
-        # dim2_str = ['operational_none', 'operational_cmp', 'operational_arith', 'operational_aggr', 'operational_cmp_ari', 'operational_cmp_aggr', 'operational_ari_aggr', 'operational_full']
-        # square.append(dim2_str)
-        # for idx1, dim1 in enumerate([structural_none, structural_tc, structural_m, structural_tc_m]):
-        #     square.append([])
-        #     square[-1].append(dim1_str[idx1])
-        #     for idx2, dim2 in enumerate([operational_none, operational_cmp, operational_arith, operational_aggr, operational_cmp_arith, operational_cmp_aggr, operational_arith_aggr, operational_full]):
-        #         subset_item = [f1 for qid, f1 in result.items() if qid in dim1 and qid in dim2]
-        #         subset_len = len(subset_item)
-        #         # print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', f"{subset_f1*100:.1f}")
-        #         square[-1].append(subset_len)
-        # print (tabulate(square, headers='firstrow', tablefmt='grid'))
-        # print("F1SCORE_OF_CELLS")
-        # square = []
-        # dim1_str = ['structural_none', 'structural_ff', 'structural_mr', 'structural_ff_mr']
-        # dim2_str = ['operational_none', 'operational_cmp', 'operational_arith', 'operational_aggr', 'operational_cmp_ari', 'operational_cmp_aggr', 'operational_ari_aggr', 'operational_full']
-        # square.append(dim2_str)
-        # for idx1, dim1 in enumerate([structural_none, structural_tc, structural_m, structural_tc_m]):
-        #     square.append([])
-        #     square[-1].append(dim1_str[idx1])
-        #     for idx2, dim2 in enumerate([operational_none, operational_cmp, operational_arith, operational_aggr, operational_cmp_arith, operational_cmp_aggr, operational_arith_aggr, operational_full]):
-        #         subset_item = [f1 for qid, f1 in result.items() if qid in dim1 and qid in dim2]
-        #         subset_f1 = avg(subset_item)
-        #         # print('dimension1', dim1_str[idx1], 'dimension2', dim2_str[idx2], 'number', len(subset_item), 'f1', f"{subset_f1*100:.1f}")
-        #         square[-1].append( f"{subset_f1*100:.1f}")
-        # print (tabulate(square, headers='firstrow', tablefmt='grid'))
 
 def draw_complexity_combination_table(extraction_path):
-    # "duration_comparison": [],
-    # "duration_calculation": [],
-    # "timepoint_shift": [],
-    # "duration_derivation": [],
-    # "granularity_conversion": [],
-    # "temporal_composition": [],
-    # "multi_hop": [],
-    # "timepoint_ordinal": [],
-    # "duration_ordinal": [],
-    # "temporal_statistic": [],
-    # "fact_counting": []
-    #class into 16 types
     print('Analyzing complexity combination of extraction results:', extraction_path)
     data = read_json(extraction_path)
     total_len = len(data)
@@ -1320,9 +1060,6 @@ def draw_complexity_combination_table(extraction_path):
     structural_tc_m = set(structural_m).intersection(structural_tc)
     print('Questions containing both temporal fact fusion and multi hop reasoning')
     print(len(structural_tc_m), ':', 100*len(structural_tc_m)/total_len)
-
-
-
 
 def random_sample_datasets_for_sutime_nuance_check(datasets, population):
     random.seed(1)
@@ -1352,26 +1089,19 @@ def random_sample_datasets_for_sutime_nuance_check(datasets, population):
 
 from tqdm import tqdm
 if __name__ == "__main__":
-    ## uncomment to run corresponding analysis
-    ##-------------------------------- Calculation of Dataset Staticstics  ---------------------------------------------------------
-    # calculate_splits_statics('../dataset/CR-TKGQA')
+    # uncomment to run corresponding analysis
+    #-------------------------------- Calculation of Dataset Staticstics  ---------------------------------------------------------
+    calculate_splits_statics('../dataset/CR-TKGQA')
 
-    ## ------------------------------------ Analysis of Complexity -----------------------------------------------------------------
-    # # this takes about 3 min
-    # analysis_temporal_taxonomy('CR-TKGQA')
-    # this takes about 3 min
+    # ------------------------------------ Analysis of Complexity -----------------------------------------------------------------
+    analysis_temporal_taxonomy('CR-TKGQA')
     analysis_split_complexity('../dataset/CR-TKGQA', '../analysis_results/CR-TKGQA/complexity_taxonomy.json', '../analysis_results/CR-TKGQA/table_cr_tkgqa_sparql.json')
 
-    ## this is fast
     analysis_temporal_taxonomy('TempQA-WD')
     analysis_split_complexity('../dataset/tempqa-wd', '../analysis_results/TempQA-WD/complexity_taxonomy.json', '../analysis_results/TempQA-WD/table_tempqa_wd_sparql.json')
 
     draw_complexity_combination_table('../analysis_results/CR-TKGQA/complexity_taxonomy.json')
     draw_complexity_combination_table('../analysis_results/TempQA-WD/complexity_taxonomy.json') 
 
-
-    ##----------------------------------- Analysis of Experimental Results --------------------------------------------------------
-    # print('--------------OLD-------------')
-    # result_analysis('../analysis_results/CR-TKGQA/complexity_taxonomy.json', '/home5/dkxu/workspace/dataset-ESWC/all_methods_f1.json', '../dataset/CR-TKGQA/test.json')
-    # print('--------------NEW-------------')
-    # result_analysis('../analysis_results/CR-TKGQA/complexity_taxonomy.json', '../baselines/results/collect.json', '../dataset/CR-TKGQA/test.json')
+    #----------------------------------- Analysis of Experimental Results --------------------------------------------------------
+    result_analysis('../analysis_results/CR-TKGQA/complexity_taxonomy.json', '../baselines/results/collect.json', '../dataset/CR-TKGQA/test.json')
